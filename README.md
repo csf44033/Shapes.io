@@ -1,0 +1,2 @@
+# Shapes.io
+strategy game
