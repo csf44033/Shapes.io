@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body{
+      text-align: center;
+      font-family: monospace;
+      margin:0;
+    }
+    #c{
+      display: block;
+      margin: 0 auto;
+      margin-top:50px;
+      margin-bottom:50px;
+      border:solid 5px rgb(200,200,200);
+      border-radius: 10px;
+    }
+    #menu{
+      font-family: monospace;
+      color:rgb(255, 255, 255);
+      padding:5%;
+      background-color: rgb(50,170,50);
+      text-align: center;
+      display: block;
+      border-bottom : solid 5px rgb(50,100,50);
+    }
+    #game{
+      background-color: rgb(255,255,255);
+      display:none;
+    }
+    #topTen{
+      background-color: rgb(50,170,50);
+      color:rgb(255,255,255);
+      padding:5px;
+      border-bottom: solid 5px rgb(50,100,50);
+    }
+    #controls{
+      padding:5px;
+      color:rgb(255,255,255);
+      background-color: rgb(150,150,150);
+      border-top: solid 5px rgb(200,200,200);
+      border-bottom: solid 5px rgb(100,100,100);
+    }
+  </style>
+</head>
+<body>
+  <div id = "menu">
+    <h1>SHAPES.io</h1>
+    <input name = "name" id = "name" placeHolder = "name">
+    <button id = "join"> EnterGame </button>
+  </div>
+  <div id = "game">
+    <div id = "topTen">
+      Top Ten:<br>
+    </div>
+    <canvas id="c" width="400"height="400"></canvas>
+  </div>
+  <div id = "controls">
+    Move Mouse<br>
+    Drop Cookies<br>
+    SHAPES.io - COMPLEX
+  </div>
+  <script>
+
+  var World = [];
+  var scene = "menu";
+
+  var toptenDIV = document.getElementById("topTen");
+  var menuDIV = document.getElementById("menu");
+  var gameDIV = document.getElementById("game");
+  var canvas = document.getElementById("c");
+  var ctx = canvas.getContext("2d");
+  var w = canvas.width;
+  var h = canvas.height;
+
+  var connection = 0;
+  var joined = 0;
+  var tau = Math.PI*2;
+
+  var topTen = [];
+  var players = [];
+  var cookies = [];
+  var explods = [];
+
+  var colors = [["rgb(255,50,50)","rgb(200,0,0)"],
+                ["rgb(50,255,255)","rgb(0,200,200)"],
+                ["rgb(50,255,50)","rgb(0,200,0)"],
+                ["rgb(255,255,50)","rgb(200,200,0)"]];
+  var Gray = "rgb(100,100,100)";
+
+  var mouseX,mouseY;
+  mouseX=mouseY=200;
+
+  function constrain (x,min,max){
+    return x < min ? min : x > max ? max : x;
+  }
+
+  function Player (name) {
+    if(name){
+      if(name.length>13){
+        this.name = name.substring(0,13);
+      }else{
+        this.name = name;
+      }
+    }else{
+      this.name = "Farmer Pickle";
+    }
+    this.sides = 3;
+    this.nexsi = this.sides;
+    this.angle = 0;
+    this.x = Math.random()*1000-500;
+    this.y = Math.random()*1000-500;
+    this.clr = ~~(Math.random()*(colors.length-1)+0.5);
+  };
+
+  function Cookie (parant) {
+    var angle = Math.random()*tau;
+    this.x = parant.x+Math.cos(angle)*35;
+    this.y = parant.y+Math.sin(angle)*35;
+    this.x = constrain(this.x,-4000,4000);
+    this.y = constrain(this.y,-4000,4000);
+    this.clr = parant.clr;
+  }
+
+  var Camera = {
+    x: 0,
+    y: 0,
+    s: 1,
+    apply: function(){
+      if(players.length){
+        var x = players[0].x;
+        var y = players[0].y;
+        this.x += (w/2-x-this.x)/10;
+        this.y += (h/2-y-this.y)/10;
+        ctx.strokeStyle = "rgb(200,200,200)"
+        for(var i = 0; i <= 10; i ++){
+          var x = i*40+this.x%40;
+          var y = i*40+this.y%40;
+          ctx.beginPath();
+          ctx.moveTo(x,0);
+          ctx.lineTo(x,400);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0,y);
+          ctx.lineTo(400,y);
+          ctx.closePath();
+          ctx.stroke();
+        }
+        ctx.translate(this.x,this.y);
+      }
+    }
+  };
+
+  function drawPlayer (that){
+    var c = that.clr;
+    ctx.fillStyle = colors[c][0];
+    ctx.strokeStyle = colors[c][1];
+    ctx.lineWidth = 4;
+    var r = 20;
+    var s = that.sides;
+    var z = tau/s;
+    var cx = Math.cos(z);
+    var sy = Math.sin(z);
+    var vx = 1;
+    var vy = 0;
+    ctx.save();
+    ctx.translate(that.x,that.y);
+    ctx.rotate(that.angle);
+    ctx.beginPath();
+    ctx.moveTo(vx*r,vy*r);
+    for(var i = 0; i < s-1; i ++){
+      var vox = vx;
+      vx = vx*cx - vy*sy;
+      vy = vy*cx + vox*sy;
+      ctx.lineTo(vx*r,vy*r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    var name = that.name;
+    ctx.font = "10px monospace";
+    ctx.textAlign = "center";
+    ctx.fillStyle = colors[c][1];
+    ctx.fillText(name, that.x, that.y+r+10);
+  };
+
+  function drawCookie (that){
+    ctx.fillStyle = colors[that.clr][0];
+    ctx.strokeStyle = colors[that.clr][1];
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(that.x,that.y,10,0,tau);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  };
+
+  function drawExplode (that){
+    var alpha = tau/10;
+    var c = Math.cos(alpha);
+    var s = Math.sin(alpha);
+    var vx = 0;
+    var vy = -1;
+    var r = 20;
+    var t = that.t;
+
+    ctx.strokeStyle = colors[that.clr][1];
+    ctx.lineWidth = 2;
+    ctx.save();
+    ctx.translate(that.x,that.y);
+    for(var i = 0; i < 10; i ++){
+      ctx.beginPath();
+      ctx.moveTo(vx*r*t,vy*r*t);
+      ctx.lineTo(vx*r,vy*r);
+      ctx.closePath();
+      ctx.stroke();
+      var vox = vx;
+      vx = vx*c - vy*s;
+      vy = vy*c + vox*s;
+    }
+    ctx.restore();
+    that.t += (1-that.t)/8;
+  };
+
+  function drawWorld (){
+    for(var i = World.length-1; i >= 0; i --){
+      if(World[i].s<0){
+        ctx.fillStyle = Gray;
+      }else{
+        ctx.fillStyle = colors[World[i].clr][0];
+      }
+      ctx.fillRect(World[i].x,World[i].y,40,40);
+    }
+  };
+
+  var ws = new WebSocket("ws://dip.elijahporters.site:8080/");
+  ws.onopen = function(event){
+    connection = 1;
+  };
+  ws.onmessage = function(event){
+    console.log("DATA recieved");
+    var message = JSON.parse(event.data);
+    switch(message.type){
+      case "playerList":
+        players = message.data;
+        toptenDIV.innerHTML = "Top Ten:<br>"+message.topTen;
+      break;
+      case "cookieList":
+        cookies = message.data;
+      break;
+      case "world":
+        World = message.data;
+      break;
+      case "explode":
+        var m = message.data;
+        for(var i = 0, l = m.length; i < l; i ++){
+          explods.push(m[i]);
+        }
+      break;
+    }
+  };
+  ws.onclose = function(event){
+    alert("No Connection");
+  }
+
+  function update (that) {
+    if(!connection){return;}
+    that.x += (mouseX-200)/50;
+    that.y += (mouseY-200)/50;
+
+    that.x = constrain(that.x,-4000,4000);
+    that.y = constrain(that.y,-4000,4000);
+
+    that.angle += 0.05;
+    that.angle = that.angle%tau;
+    that.sides += (that.nexsi-that.sides)/20;
+    var message = {type:"update",data:that};
+    ws.send(JSON.stringify(message));
+  };
+
+  function game(){
+    if(players.length){
+      joined = 1;
+      update(players[0]);
+    }else if(joined){
+      joined = 0;
+      menuDIV.style = "display:block";
+      gameDIV.style = "display:none";
+    }
+    ctx.save();
+    Camera.apply();
+    drawWorld();
+    for(var i = explods.length-1; i >= 0; i --){
+      drawExplode(explods[i]);
+      if(explods[i].t>0.9){
+        explods.splice(i,1);
+      }
+    }
+    for(var i = 0, l = cookies.length; i < l; i ++){
+      drawCookie(cookies[i]);
+    }
+    for(var i = 0, l = players.length; i < l; i ++){
+      drawPlayer(players[i]);
+    }
+
+    ctx.restore();
+  };
+
+  function run (){
+    ctx.fillStyle = "rgb(255,255,255)";
+    ctx.fillRect(0,0,w,h);
+    switch(scene){
+      case "game":
+      game();
+      break;
+    }
+  };
+  window.setInterval(run,16);
+  canvas.addEventListener("mousemove",function(event){
+    mouseX = event.clientX-canvas.getBoundingClientRect().left;
+    mouseY = event.clientY-canvas.getBoundingClientRect().top;
+  });
+  canvas.addEventListener("click",function(event){
+    console.log("CLICKED");
+    if(players.length&&connection){
+      console.log(players[0].nexsi);
+      if(players[0].nexsi > 3){
+        players[0].nexsi -= 1;
+        console.log("SEND player")
+        var message = {type:"update",data:players[0]};
+        ws.send(JSON.stringify(message));
+        console.log("SEND cookie");
+        var message = {type:"cookie",data:new Cookie(players[0])};
+        ws.send(JSON.stringify(message));
+      }
+    }
+  });
+  var enterButton = document.getElementById("join");
+  enterButton.addEventListener("click",function(event){
+    if(connection){
+      var name = document.getElementById("name");
+      menuDIV.style = "display:none";
+      gameDIV.style = "display:block";
+      var message = {type:"join",data:new Player(name.value)};
+      console.log("JOIN request");
+      ws.send(JSON.stringify(message));
+      scene = "game";
+    }else{
+      alert("NOT connected\n\nSOLUTION: refresh page");
+    }
+  });
+  </script>
+</body>
+</html>
